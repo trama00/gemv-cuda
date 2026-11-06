@@ -1,0 +1,69 @@
+# Recorded benchmark — NVIDIA Tesla T4 (Google Colab)
+
+Captured from the original `notebook/CiociRosnatiTramacere.ipynb` run, AACAP
+Challenge 3, 2024. This is the only measurement that exists for this project;
+the modularised source in `src/` was refactored from it and has not been
+re-run (no CUDA device available at refactor time).
+
+## Device
+
+```
+Device Number: 0
+  Device name: Tesla T4
+  max Blocks Per MultiProcessor: 16
+  max Threads Per MultiProcessor: 1024
+  max Threads Per Block: 1024
+  num SM: 40
+  num bytes sharedMem Per Block: 49152
+  num bytes sharedMem Per Multiprocessor: 65536
+  Memory Clock Rate (KHz): 5001000
+  Memory Bus Width (bits): 256
+  Peak Memory Bandwidth (GB/s): 320.064000
+```
+
+## Configuration
+
+| Setting | Value |
+|---|---|
+| Matrix | 16384 x 16384 `unsigned char` (268 MB) |
+| Vector | 16384 `unsigned char` |
+| Threads per block | 64 |
+| Blocks | 256 |
+| Data | `rand() % 2` for A, `rand() % 3` for b |
+
+## Results
+
+```
+Time elapsed on initialization with size 16384 = 5191.073000 ms
+Time elapsed on naive CPU implementation with size 16384 = 966.719000 ms
+Time elapsed on GPU implementation with size of 16384 = 31.521313 ms.
+
+OK
+ cpu_result: 396334905 <-> gpu_result: 396334905
+```
+
+| Implementation | Time |
+|---|---|
+| Naive serial CPU | 966.72 ms |
+| CUDA (two-kernel) | 31.52 ms |
+| **Speedup** | **30.7x** |
+
+The notebook notes a typical steady-state of **~29 ms** after warm-up; the
+31.52 ms above includes the first, slower launches.
+
+## Derived numbers
+
+- Effective bandwidth, assuming the matrix is read once:
+  `268 MB / 31.52 ms = 8.5 GB/s`, i.e. **2.7% of the T4's 320 GB/s peak**.
+  This is the coalescing problem described in `docs/optimization-notes.md`.
+- The correctness check is exact: both paths return `396334905`.
+
+## Caveats
+
+- CPU baseline is a naive single-threaded loop, not BLAS. The honest claim is
+  "30.7x over a naive serial implementation".
+- Initialisation (`5191 ms`) dominates wall time but is excluded from the
+  comparison on both sides.
+- One run, one device, one input size. The refactored benchmark harness
+  (`scripts/benchmark.sh`) adds warm-up and repeated timing to tighten this,
+  but its numbers are not recorded here because it has not been run.
